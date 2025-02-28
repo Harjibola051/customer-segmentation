@@ -1,5 +1,5 @@
-# customer-segmentation
-customer segmentation analysis using KMeans 
+# Customer-Segmentation Analysis. 
+# dataset link: https://www.kaggle.com/code/analystoleksandra/marketing-analytics-customer-segmentation/notebook?select=ifood_df.csv
 # Airlines-Dashboard
 
 ### Dashboard Link : https://app.powerbi.com/groups/me/reports/384d017e-e935-44dc-9e7d-1626c1a36de1/ReportSection
