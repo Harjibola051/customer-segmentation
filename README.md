@@ -163,62 +163,153 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
 ```
 
+# Kmeans clustering
+- **Correlation analysis:**
+- Selecting relevant columns for each segmentation:
+in this case we would be grouping the columns into segments and applying heatmap to see the correlations between them and to know which analysis is best we do. 
+
+```python
+# grouping relevant columns
+rfm_cols = ["Recency", "MntTotal", "NumStorePurchases", "NumWebPurchases", "NumCatalogPurchases"] 
+product_cols = ["MntWines", "MntFruits", "MntMeatProducts", "MntFishProducts", "MntSweetProducts", "MntGoldProds"]
+demographic_cols = ["Income", "Age", "Kidhome", "Teenhome"]
+```
+
+```python
+# Combine all selected columns into one DataFrame
+selected_cols = rfm_cols + product_cols + demographic_cols
+df_selected = df[selected_cols]
+```
+
+```python
+# Compute correlation matrices
+correlation_rfm = df[rfm_cols].corr()
+correlation_product = df[product_cols].corr()
+correlation_demographic = df[demographic_cols].corr()
+```
 
 
+```python
+# Plot heatmaps
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
+sns.heatmap(correlation_rfm, annot=True, fmt=".2f", cmap="coolwarm", linewidths=0.5, ax=axes[0])
+axes[0].set_title("Correlation Matrix - RFM Segmentation")
 
+sns.heatmap(correlation_product, annot=True, fmt=".2f", cmap="coolwarm", linewidths=0.5, ax=axes[1])
+axes[1].set_title("Correlation Matrix - Product-Based Segmentation")
 
+sns.heatmap(correlation_demographic, annot=True, fmt=".2f", cmap="coolwarm", linewidths=0.5, ax=axes[2])
+axes[2].set_title("Correlation Matrix - Demographic Segmentation")
 
+plt.tight_layout()
+plt.show()
+```
+```python
+# Display top correlated features
+correlation_unstacked = df_selected.corr().unstack().sort_values(ascending=False)
+print("Top Correlations:")
+print(correlation_unstacked[correlation_unstacked < 1].head(10))  # Exclude self-correlations
+```
 
+the rfm and product base segmentation have strong positive correlations between them. with the product base segment having higher positive correlations. 
+we would dive moe into the analysis. 
 
+# Apply kmeans clustering for rfm
+```python 
 
+# Selecting relevant columns for RFM segmentation
+rfm_cols = ["Recency", "MntTotal", "NumStorePurchases", "NumWebPurchases", "NumCatalogPurchases"] 
 
+df_rfm = df[rfm_cols]
 
+# Compute correlation matrix
+correlation_rfm = df_rfm.corr()
 
+# Plot heatmap
+plt.figure(figsize=(8, 6))
+sns.heatmap(correlation_rfm, annot=True, fmt=".2f", cmap="coolwarm", linewidths=0.5)
+plt.title("Correlation Matrix - RFM Segmentation")
+plt.show()
 
+# Display top correlated features
+correlation_unstacked = df_rfm.corr().unstack().sort_values(ascending=False)
+print("Top Correlations:")
+print(correlation_unstacked[correlation_unstacked < 1].head(10))  # Exclude self-correlations
 
+# Function for KMeans clustering, Silhouette & Elbow Method, and PCA visualization
+def perform_kmeans_pca(df_subset, cols, segmentation_name):
+    scaler = StandardScaler()
+    df_scaled = scaler.fit_transform(df_subset[cols])
+    
+    # Determine optimal clusters
+    wcss = []
+    silhouette_scores = []
+    k_range = range(2, 11)
+    
+    for k in k_range:
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        cluster_labels = kmeans.fit_predict(df_scaled)
+        wcss.append(kmeans.inertia_)
+        silhouette_scores.append(silhouette_score(df_scaled, cluster_labels))
+    
+    # Plot Elbow Method
+    plt.figure(figsize=(8, 4))
+    plt.plot(k_range, wcss, marker='o')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('WCSS')
+    plt.title('Elbow Method for Optimal K')
+    plt.show()
+    
+    # Plot Silhouette Score
+    plt.figure(figsize=(8, 4))
+    plt.plot(k_range, silhouette_scores, marker='o')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('Silhouette Score')
+    plt.title('Silhouette Score Analysis')
+    plt.show()
+    
+    # Choose optimal clusters
+    optimal_clusters = k_range[silhouette_scores.index(max(silhouette_scores))]
+    print(f"Optimal clusters for {segmentation_name}: {optimal_clusters}")
+    
+    # Apply KMeans
+    kmeans = KMeans(n_clusters=optimal_clusters, random_state=42, n_init=10)
+    df_subset[f"{segmentation_name}_Cluster"] = kmeans.fit_predict(df_scaled)
+    
+    # PCA for visualization
+    pca = PCA(n_components=2)
+    df_pca = pca.fit_transform(df_scaled)
+    df_subset["PCA1"] = df_pca[:, 0]
+    df_subset["PCA2"] = df_pca[:, 1]
+    
+    # Scatter plot
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=df_subset["PCA1"], y=df_subset["PCA2"], hue=df_subset[f"{segmentation_name}_Cluster"], palette="viridis", alpha=0.7)
+    plt.xlabel("Principal Component 1")
+    plt.ylabel("Principal Component 2")
+    plt.title(f"KMeans Clustering Visualization Using PCA - {segmentation_name}")
+    plt.legend(title="Cluster")
+    plt.show()
+    
+    # Boxplot analysis for MntTotal and clusters
+    plt.figure(figsize=(8, 6))
+    sns.boxplot(x=df_subset[f"{segmentation_name}_Cluster"], y=df_subset["MntTotal"], palette="viridis")
+    plt.xlabel("Cluster")
+    plt.ylabel("MntTotal")
+    plt.title(f"Boxplot of MntTotal by {segmentation_name} Clusters")
+    plt.show()
+    
+    # Boxplot analysis for Recency and clusters
+    plt.figure(figsize=(8, 6))
+    sns.boxplot(x=df_subset[f"{segmentation_name}_Cluster"], y=df_subset["Recency"], palette="coolwarm")
+    plt.xlabel("Cluster")
+    plt.ylabel("Recency")
+    plt.title(f"Boxplot of Recency by {segmentation_name} Clusters")
+    plt.show()
+    
+    return df_subset
 
-
-
-
-
-
-
-## Findings
-
-- **Customer Demographics**: The dataset includes customers from various age groups, with sales distributed across different categories such as Clothing and Beauty.
-- **High-Value Transactions**: Several transactions had a total sale amount greater than 1000, indicating premium purchases.
-- **Sales Trends**: Monthly analysis shows variations in sales, helping identify peak seasons.
-- **Customer Insights**: The analysis identifies the top-spending customers and the most popular product categories.
-
-## Reports
-
-- **Sales Summary**: A detailed report summarizing total sales, customer demographics, and category performance.
-- **Trend Analysis**: Insights into sales trends across different months and shifts.
-- **Customer Insights**: Reports on top customers and unique customer counts per category.
-
-## Conclusion
-
-This project serves as a comprehensive introduction to SQL for data analysts, covering database setup, data cleaning, exploratory data analysis, and business-driven SQL queries. The findings from this project can help drive business decisions by understanding sales patterns, customer behavior, and product performance.
-
-## How to Use
-
-1. **Clone the Repository**: Clone this project repository from GitHub.
-2. **Set Up the Database**: Run the SQL scripts provided in the `database_setup.sql` file to create and populate the database.
-3. **Run the Queries**: Use the SQL queries provided in the `analysis_queries.sql` file to perform your analysis.
-4. **Explore and Modify**: Feel free to modify the queries to explore different aspects of the dataset or answer additional business questions.
-
-## Author - Zero Analyst
-
-This project is part of my portfolio, showcasing the SQL skills essential for data analyst roles. If you have any questions, feedback, or would like to collaborate, feel free to get in touch!
-
-### Stay Updated and Join the Community
-
-For more content on SQL, data analysis, and other data-related topics, make sure to follow me on social media and join our community:
-
-- **YouTube**: [Subscribe to my channel for tutorials and insights](https://www.youtube.com/@zero_analyst)
-- **Instagram**: [Follow me for daily tips and updates](https://www.instagram.com/zero_analyst/)
-- **LinkedIn**: [Connect with me professionally](https://www.linkedin.com/in/najirr)
-- **Discord**: [Join our community to learn and grow together](https://discord.gg/36h5f2Z5PK)
-
-Thank you for your support, and I look forward to connecting with you!
+# Perform KMeans, Silhouette & Elbow Method, and PCA on RFM segmentation
+df_rfm_segmented = perform_kmeans_pca(df, rfm_cols, "RFM")
+```
